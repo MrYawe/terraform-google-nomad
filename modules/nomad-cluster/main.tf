@@ -21,10 +21,15 @@ resource "google_compute_region_instance_group_manager" "nomad" {
   }
   region               = var.gcp_region
 
-  # Restarting all Nomad servers at the same time will result in data loss and down time. Therefore, the update strategy
-  # used to roll out a new GCE Instance Template must be a rolling update. But since Terraform does not yet support
-  # ROLLING_UPDATE, such updates must be manually rolled out for now.
-  update_strategy = var.instance_group_update_strategy
+  # Our Consul Clients are completely stateless, so we are free to destroy and re-create them as needed.
+  update_policy {
+    type                          = "PROACTIVE"
+    instance_redistribution_type  = "PROACTIVE"
+    minimal_action                = "REPLACE"
+    min_ready_sec                 = 50
+    max_surge_fixed               = 1 * length(data.google_compute_zones.available.names)
+    max_unavailable_fixed         = 1 * length(data.google_compute_zones.available.names)
+  }
 
   target_pools = var.instance_group_target_pools
   target_size  = var.cluster_size
@@ -191,4 +196,8 @@ data "template_file" "compute_instance_template_self_link" {
     ),
     0,
   )
+}
+
+data "google_compute_zones" "available" {
+  region  = var.gcp_region
 }
